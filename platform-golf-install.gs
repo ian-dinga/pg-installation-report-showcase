@@ -32,7 +32,7 @@ const CONFIG = {
   INSTALL_SUBFOLDER_NAME: 'Installation Report',
 
   SLACK_BOT_TOKEN:    'xoxb-YOUR-SLACK-BOT-TOKEN',
-  SLACK_CHANNEL:      '#installation-submissions',
+  SLACK_CHANNEL:      '#your-slack-channel',
   SLACK_ERROR_EMAIL:  'your@email.com',  // receives DM on any GAS error or client-side failure
 
   FOLDER_NAME_FORMAT: 'name_location_date', // or 'name_date'

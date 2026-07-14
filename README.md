@@ -37,7 +37,7 @@ Google Apps Script (Web App)
       ├─► Writes a summary .txt document
       ├─► Fuzzy-matches existing customer folders by name/city/state
       │
-      └─► Posts to Slack (#installation-submissions)
+      └─► Posts to Slack (#your-slack-channel)
                 │
                 ├─ ✅ Approve & File  → moves folder into matched customer directory
                 ├─ ✏️  Reassign       → opens modal to search and select correct folder
@@ -49,7 +49,7 @@ Google Apps Script (Web App)
 ## Key Features
 
 - **11-step mobile-first form** with progress tracking, per-step validation, and local storage auto-save so partial submissions survive a browser close
-- **Platform type branching** — selecting "No Platform" or "SimBay Pro" skips the platform-specific build steps (actuator wiring, frame, calibration, finished platform) automatically
+- **Platform type branching** — selecting "No Platform" or a platform type that doesn't require a full build skips the platform-specific steps (actuator wiring, frame, calibration, finished platform) automatically
 - **Client-side photo compression** — images resized to 1600px max and re-encoded as JPEG at 0.82 quality before upload, keeping payload sizes manageable over cellular
 - **Video support (legacy form)** — videos sent with original MIME type preserved; GAS saves them with the correct extension (`.mp4`, `.mov`, etc.) rather than `.jpg`
 - **Fire-and-forget submission (legacy form)** — shows the success screen immediately after the request starts rather than awaiting the response, avoiding timeouts on large video payloads over slow connections
@@ -70,7 +70,7 @@ Vanilla HTML / CSS / JS · Google Apps Script · Google Drive API · Slack Block
 3. Update `CONFIG` at the top of the file:
    - `DRIVE_PARENT_FOLDER_ID` — the Google Drive folder that holds all customer project folders
    - `SLACK_BOT_TOKEN` — a Slack bot token with scopes: `chat:write`, `im:write`, `users:read.email`, `views.open`, `channels:read`
-   - `SLACK_CHANNEL` — the channel to post installation notifications to (e.g. `#installation-submissions`)
+   - `SLACK_CHANNEL` — the channel to post installation notifications to (e.g. `#your-slack-channel`)
    - `SLACK_ERROR_EMAIL` — email address to DM on errors
 4. Deploy as a **Web App** (Execute as: Me, Access: Anyone)
 5. Copy the deployment URL
