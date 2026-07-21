@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════
-//  Platform Golf — Installation Report Handler v4.7.0
+//  Platform Golf — Installation Report Handler v4.8.0
 //  Google Apps Script — deploy as Web App (Execute as: Me, Anyone)
 //
 //  v3.0.0 — Reassign modal, Approve, Flag, folder suggestions
@@ -20,6 +20,7 @@
 //  v4.5.0 — Legacy form: show photo/video counts separately in Slack notification
 //  v4.6.0 — Error reporting: client-side errors and GAS exceptions DM your@email.com
 //  v4.7.0 — Misc notes live at Installation Report / Miscellaneous Notes.txt (not inside Miscellaneous/)
+//  v4.8.0 — Fix: URL buttons no longer crash doPost; filter iOS __gCrWeb noise from error reports
 // ═══════════════════════════════════════════════════════════════
 
 const CONFIG = {
@@ -547,6 +548,11 @@ function postInstallNotification(formData, pendingFolder, match) {
 function handleSlackInteraction(payload) {
   if (payload.type === 'block_actions') {
     const action  = payload.actions[0];
+
+    // URL-only buttons (open_filed, open_misc, open_pending, open_reassigned) fire a
+    // block_actions ping with no value field — just ack and return.
+    if (!action.value) return ContentService.createTextOutput('').setMimeType(ContentService.MimeType.TEXT);
+
     const channel = payload.channel.id;
     const ts      = payload.message.ts;
     const user    = payload.user.name;
