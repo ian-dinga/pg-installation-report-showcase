@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════
-//  Platform Golf — Installation Report Handler v4.4.0
+//  Platform Golf — Installation Report Handler v4.7.0
 //  Google Apps Script — deploy as Web App (Execute as: Me, Anyone)
 //
 //  v3.0.0 — Reassign modal, Approve, Flag, folder suggestions
@@ -19,6 +19,7 @@
 //  v4.4.0 — Video upload support: preserve MIME type and use correct file extension (.mp4, .mov, etc.)
 //  v4.5.0 — Legacy form: show photo/video counts separately in Slack notification
 //  v4.6.0 — Error reporting: client-side errors and GAS exceptions DM your@email.com
+//  v4.7.0 — Misc notes live at Installation Report / Miscellaneous Notes.txt (not inside Miscellaneous/)
 // ═══════════════════════════════════════════════════════════════
 
 const CONFIG = {
@@ -614,9 +615,7 @@ function approveAndFile(meta, channel, ts, approvedBy) {
     ? fileMiscFormToFolder(meta.pendingFolderId, meta.matchedFolderId)
     : fileSubmission(meta.pendingFolderId, meta.matchedFolderId);
 
-  const folderLabel = meta.isMisc
-    ? `${meta.matchedFolderName} / ${CONFIG.INSTALL_SUBFOLDER_NAME} / Miscellaneous`
-    : `${meta.matchedFolderName} / ${CONFIG.INSTALL_SUBFOLDER_NAME}`;
+  const folderLabel = `${meta.matchedFolderName} / ${CONFIG.INSTALL_SUBFOLDER_NAME}`;
 
   slackPost('chat.update', {
     channel, ts,
@@ -632,7 +631,7 @@ function approveAndFile(meta, channel, ts, approvedBy) {
       {
         type: 'actions',
         elements: [
-          { type: 'button', text: { type: 'plain_text', text: meta.isMisc ? '📁 Open Misc Folder' : '📁 Open Installation Report', emoji: true }, url: installFolder.getUrl(), action_id: 'open_filed' },
+          { type: 'button', text: { type: 'plain_text', text: '📁 Open Installation Report', emoji: true }, url: installFolder.getUrl(), action_id: 'open_filed' },
         ],
       },
     ],
@@ -972,8 +971,9 @@ function respond(code, message, extra) {
 //  /misc slash command  → save a text note to Drive
 //  Message shortcut     → save image(s) from Slack to Drive
 //
-//  Both land in: [Customer] / Installation Report / Miscellaneous/
-//  Folder is created automatically if it doesn't exist.
+//  Text notes land in: [Customer] / Installation Report / Miscellaneous Notes.txt
+//  Photos/files land in: [Customer] / Installation Report / Miscellaneous/
+//  Both folders/files are created automatically if they don't exist.
 // ═══════════════════════════════════════════════════════════════
 
 
@@ -994,7 +994,7 @@ function openMiscModal(triggerId, channelId, userName) {
       blocks: [
         {
           type: 'section',
-          text: { type: 'mrkdwn', text: 'Saves a text note or pasted content to the *Miscellaneous* folder inside the customer\'s Installation Report folder. Great for measurements, room notes, or anything informal.' },
+          text: { type: 'mrkdwn', text: 'Saves a text note or pasted content to *Miscellaneous Notes.txt* inside the customer\'s Installation Report folder. Great for measurements, room notes, or anything informal.' },
         },
         {
           type:     'input',
@@ -1057,7 +1057,7 @@ function handleMiscSubmit(payload) {
     text:    `⏳ Saving note to ${folder.name}…`,
     blocks: [{
       type: 'section',
-      text: { type: 'mrkdwn', text: `⏳ *Saving to Drive...*\nFiling to \`${folder.name} / ${CONFIG.INSTALL_SUBFOLDER_NAME} / Miscellaneous\`\n_Submitted by @${payload.user.name} — usually completes within a minute._` },
+      text: { type: 'mrkdwn', text: `⏳ *Saving to Drive...*\nFiling to \`${folder.name} / ${CONFIG.INSTALL_SUBFOLDER_NAME}\`\n_Submitted by @${payload.user.name} — usually completes within a minute._` },
     }],
   });
 
@@ -1169,7 +1169,7 @@ function handleMiscFileSubmit(payload) {
     text:    `⏳ Saving to ${folder.name}…`,
     blocks: [{
       type: 'section',
-      text: { type: 'mrkdwn', text: `⏳ *Saving to Drive...*\nFiling to \`${folder.name} / ${CONFIG.INSTALL_SUBFOLDER_NAME} / Miscellaneous\`\n_Requested by @${payload.user.name} — usually completes within a minute._` },
+      text: { type: 'mrkdwn', text: `⏳ *Saving to Drive...*\nFiling to \`${folder.name} / ${CONFIG.INSTALL_SUBFOLDER_NAME}\`\n_Requested by @${payload.user.name} — usually completes within a minute._` },
     }],
   });
 
@@ -1213,12 +1213,13 @@ function _runQueuedMisc() {
     props.deleteProperty(jobKey);
 
     try {
-      const miscFolder = getOrCreateMiscFolder(job.customerFolderId);
-      const timestamp  = Utilities.formatDate(new Date(), CONFIG.TIMEZONE, 'yyyy-MM-dd HH:mm');
+      const reportFolder = getOrCreateReportFolder(job.customerFolderId);
+      const miscFolder   = getOrCreateMiscFolder(job.customerFolderId);
+      const timestamp    = Utilities.formatDate(new Date(), CONFIG.TIMEZONE, 'yyyy-MM-dd HH:mm');
 
       // ── Text note ──
       if (job.type === 'text') {
-        appendToMiscNotes(miscFolder, {
+        appendToMiscNotes(reportFolder, {
           userName: job.userName,
           title:    job.title,
           content:  job.content,
@@ -1235,13 +1236,13 @@ function _runQueuedMisc() {
               text: { type: 'mrkdwn', text: [
                 `✅ *Saved by @${job.userName}*`,
                 `📝 Appended to \`Miscellaneous Notes.txt\``,
-                `📁 \`${job.customerFolderName} / ${CONFIG.INSTALL_SUBFOLDER_NAME} / Miscellaneous\``,
+                `📁 \`${job.customerFolderName} / ${CONFIG.INSTALL_SUBFOLDER_NAME}\``,
               ].join('\n') },
             },
             {
               type: 'actions',
               elements: [
-                { type: 'button', text: { type: 'plain_text', text: '📁 Open Misc Folder', emoji: true }, url: miscFolder.getUrl(), action_id: 'open_misc' },
+                { type: 'button', text: { type: 'plain_text', text: '📁 Open Installation Report', emoji: true }, url: reportFolder.getUrl(), action_id: 'open_misc' },
               ],
             },
           ],
@@ -1299,7 +1300,7 @@ function _runQueuedMisc() {
 
         // Append description + file list to the shared notes file
         if (job.note || saved.length) {
-          appendToMiscNotes(miscFolder, {
+          appendToMiscNotes(reportFolder, {
             userName: job.userName,
             content:  job.note || null,
             files:    saved,
@@ -1308,7 +1309,7 @@ function _runQueuedMisc() {
 
         const lines = [
           saved.length  ? `✅ *Saved by @${job.userName}*\n` + saved.map(n => `• \`${n}\``).join('\n') + `\n📁 \`${job.customerFolderName} / ${CONFIG.INSTALL_SUBFOLDER_NAME} / Miscellaneous\`` : null,
-          (job.note || saved.length) ? `📝 Appended to \`Miscellaneous Notes.txt\`` : null,
+          (job.note || saved.length) ? `📝 Appended to \`Miscellaneous Notes.txt\`  in \`${job.customerFolderName} / ${CONFIG.INSTALL_SUBFOLDER_NAME}\`` : null,
           failed.length ? `⚠️ Failed to save: ${failed.map(n => `\`${n}\``).join(', ')}` : null,
         ].filter(Boolean).join('\n');
 
@@ -1322,7 +1323,7 @@ function _runQueuedMisc() {
             {
               type: 'actions',
               elements: [
-                { type: 'button', text: { type: 'plain_text', text: '📁 Open Misc Folder', emoji: true }, url: miscFolder.getUrl(), action_id: 'open_misc' },
+                { type: 'button', text: { type: 'plain_text', text: '📁 Open Installation Report', emoji: true }, url: reportFolder.getUrl(), action_id: 'open_misc' },
               ],
             },
           ],
@@ -1349,9 +1350,10 @@ function _runQueuedMisc() {
 /**
  * Appends a new timestamped entry to Miscellaneous Notes.txt.
  * Creates the file with a header if it doesn't exist yet.
+ * reportFolder: the Installation Report folder (file lives at that level, not inside Miscellaneous/)
  * entry: { userName, title (optional), content (optional), files (optional string[]) }
  */
-function appendToMiscNotes(miscFolder, entry) {
+function appendToMiscNotes(reportFolder, entry) {
   const NOTES_FILE = 'Miscellaneous Notes.txt';
   const SEP        = '─'.repeat(40);
   const timestamp  = Utilities.formatDate(new Date(), CONFIG.TIMEZONE, 'MMM d, yyyy h:mm a z');
@@ -1374,7 +1376,7 @@ function appendToMiscNotes(miscFolder, entry) {
   const newEntry = headerLines.join('\n') + '\n' + bodyLines.join('\n') + '\n';
 
   // Read existing file or create fresh header
-  const existing = miscFolder.getFilesByName(NOTES_FILE);
+  const existing = reportFolder.getFilesByName(NOTES_FILE);
   let currentContent;
   let existingFile = null;
 
@@ -1384,7 +1386,7 @@ function appendToMiscNotes(miscFolder, entry) {
   } else {
     currentContent = [
       '════════════════════════════════════════',
-      '  PLATFORM GOLF — MISCELLANEOUS NOTES',
+      '  YOUR COMPANY — MISCELLANEOUS NOTES',
       '════════════════════════════════════════',
       '',
     ].join('\n');
@@ -1395,7 +1397,7 @@ function appendToMiscNotes(miscFolder, entry) {
 
   // Replace old file then create updated one
   if (existingFile) existingFile.setTrashed(true);
-  return miscFolder.createFile(blob);
+  return reportFolder.createFile(blob);
 }
 
 
@@ -1502,7 +1504,7 @@ function postLegacyNotification(body, pendingFolder, match) {
         { type: 'button', text: { type: 'plain_text', text: '📁 View Pending Folder', emoji: true }, url: pendingFolder.getUrl(), action_id: 'open_pending' },
       ],
     },
-    { type: 'context', elements: [{ type: 'mrkdwn', text: `Submission ID: ${subId}  ·  Files to Miscellaneous folder on approval` }] },
+    { type: 'context', elements: [{ type: 'mrkdwn', text: `Submission ID: ${subId}  ·  Files to Installation Report / Miscellaneous on approval` }] },
   ];
 
   slackPost('chat.postMessage', {
@@ -1519,34 +1521,45 @@ function fileMiscFormToFolder(pendingFolderId, customerFolderId) {
     return null;
   }
 
-  const miscFolder = getOrCreateMiscFolder(customerFolderId);
+  const reportFolder = getOrCreateReportFolder(customerFolderId);
+  const miscFolder   = getOrCreateMiscFolder(customerFolderId);
 
+  // .txt files (summary docs) live at the Installation Report level;
+  // all other files (photos, videos) go into the Miscellaneous subfolder.
   const files = pendingFolder.getFiles();
-  while (files.hasNext()) files.next().moveTo(miscFolder);
+  while (files.hasNext()) {
+    const file = files.next();
+    const name = file.getName().toLowerCase();
+    file.moveTo(name.endsWith('.txt') ? reportFolder : miscFolder);
+  }
 
   const subFolders = pendingFolder.getFolders();
   while (subFolders.hasNext()) subFolders.next().moveTo(miscFolder);
 
   pendingFolder.setTrashed(true);
-  return miscFolder;
+  return reportFolder;
 }
 
 
-// ── MISC FOLDER HELPER ────────────────────────────────────────────
+// ── MISC FOLDER HELPERS ───────────────────────────────────────────
 
 /**
- * Gets or creates the path:
- *   [Customer Folder] / Installation Report / Miscellaneous
- * Creates either subfolder automatically if it doesn't exist.
+ * Gets or creates: [Customer Folder] / Installation Report
+ */
+function getOrCreateReportFolder(customerFolderId) {
+  const customerFolder = DriveApp.getFolderById(customerFolderId);
+  const iter = customerFolder.getFoldersByName(CONFIG.INSTALL_SUBFOLDER_NAME);
+  return iter.hasNext()
+    ? iter.next()
+    : customerFolder.createFolder(CONFIG.INSTALL_SUBFOLDER_NAME);
+}
+
+/**
+ * Gets or creates: [Customer Folder] / Installation Report / Miscellaneous
+ * (for photos and files only — text notes live one level up)
  */
 function getOrCreateMiscFolder(customerFolderId) {
-  const customerFolder = DriveApp.getFolderById(customerFolderId);
-
-  const reportIter   = customerFolder.getFoldersByName(CONFIG.INSTALL_SUBFOLDER_NAME);
-  const reportFolder = reportIter.hasNext()
-    ? reportIter.next()
-    : customerFolder.createFolder(CONFIG.INSTALL_SUBFOLDER_NAME);
-
+  const reportFolder = getOrCreateReportFolder(customerFolderId);
   const miscIter = reportFolder.getFoldersByName('Miscellaneous');
   return miscIter.hasNext()
     ? miscIter.next()
