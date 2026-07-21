@@ -243,11 +243,20 @@ document.getElementById('photo-input').addEventListener('change', e => {
 });
 
 function addFile(file) {
-  if (file.type.startsWith('video/') && file.size > 15 * 1024 * 1024) {
+  const type = file.type || '';
+
+  // HEIC/HEIF is the default iPhone photo format on Mac but Chrome can't decode it.
+  // Show a clear message rather than silently doing nothing.
+  if (type === 'image/heic' || type === 'image/heif' || file.name.toLowerCase().endsWith('.heic') || file.name.toLowerCase().endsWith('.heif')) {
+    showToast('HEIC photos don\'t work on desktop browsers. In Finder, right-click the photo → Quick Actions → Convert Image → JPEG, then re-add it.');
+    return;
+  }
+
+  if (type.startsWith('video/') && file.size > 15 * 1024 * 1024) {
     showToast('Video too large — keep clips under 15MB (roughly 10 seconds). Try trimming it first.');
     return;
   }
-  if (file.type.startsWith('video/')) {
+  if (type.startsWith('video/')) {
     const reader = new FileReader();
     reader.onload = ev => {
       const idx = photos.length;
@@ -260,6 +269,9 @@ function addFile(file) {
     const reader = new FileReader();
     reader.onload = ev => {
       const img = new Image();
+      img.onerror = () => {
+        showToast('Couldn\'t read ' + file.name + ' — try converting it to JPG first.');
+      };
       img.onload = () => {
         const canvas = document.createElement("canvas");
         const MAX = 1600;
