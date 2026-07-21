@@ -3,7 +3,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Legacy Installation Log</title>
-<link rel="icon" href="YOUR_FAVICON_URL"><style>
+<link rel="icon" href="YOUR_FAVICON_URL">
+<script src="https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js"></script><style>
 :root {
   --bg: #f5f5f3;
   --surface: #ffffff;
@@ -246,9 +247,19 @@ function addFile(file) {
   const type = file.type || '';
 
   // HEIC/HEIF is the default iPhone photo format on Mac but Chrome can't decode it.
-  // Show a clear message rather than silently doing nothing.
-  if (type === 'image/heic' || type === 'image/heif' || file.name.toLowerCase().endsWith('.heic') || file.name.toLowerCase().endsWith('.heif')) {
-    showToast('HEIC photos don\'t work on desktop browsers. In Finder, right-click the photo → Quick Actions → Convert Image → JPEG, then re-add it.');
+  // Auto-convert to JPEG using heic2any so the user doesn't have to do anything manually.
+  const isHeic = type === 'image/heic' || type === 'image/heif'
+    || file.name.toLowerCase().endsWith('.heic') || file.name.toLowerCase().endsWith('.heif');
+  if (isHeic) {
+    showToast('Converting HEIC photo…');
+    heic2any({ blob: file, toType: 'image/jpeg', quality: 0.92 })
+      .then(blob => {
+        const converted = new File([blob], file.name.replace(/\.heic$/i, '.jpg').replace(/\.heif$/i, '.jpg'), { type: 'image/jpeg' });
+        addFile(converted);
+      })
+      .catch(() => {
+        showToast('Couldn\'t convert ' + file.name + ' — try opening it in Preview and exporting as JPEG.');
+      });
     return;
   }
 
