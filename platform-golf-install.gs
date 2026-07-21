@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════
-//  Platform Golf — Installation Report Handler v4.8.0
+//  Platform Golf — Installation Report Handler v4.9.0
 //  Google Apps Script — deploy as Web App (Execute as: Me, Anyone)
 //
 //  v3.0.0 — Reassign modal, Approve, Flag, folder suggestions
@@ -21,6 +21,7 @@
 //  v4.6.0 — Error reporting: client-side errors and GAS exceptions DM your@email.com
 //  v4.7.0 — Misc notes live at Installation Report / Miscellaneous Notes.txt (not inside Miscellaneous/)
 //  v4.8.0 — Fix: URL buttons no longer crash doPost; filter iOS __gCrWeb noise from error reports
+//  v4.9.0 — Legacy form files to own dated subfolder (Legacy — YYYY-MM-DD) inside Installation Report
 // ═══════════════════════════════════════════════════════════════
 
 const CONFIG = {
@@ -621,7 +622,9 @@ function approveAndFile(meta, channel, ts, approvedBy) {
     ? fileMiscFormToFolder(meta.pendingFolderId, meta.matchedFolderId)
     : fileSubmission(meta.pendingFolderId, meta.matchedFolderId);
 
-  const folderLabel = `${meta.matchedFolderName} / ${CONFIG.INSTALL_SUBFOLDER_NAME}`;
+  const folderLabel = meta.isMisc
+    ? `${meta.matchedFolderName} / ${CONFIG.INSTALL_SUBFOLDER_NAME} / ${installFolder.getName()}`
+    : `${meta.matchedFolderName} / ${CONFIG.INSTALL_SUBFOLDER_NAME}`;
 
   slackPost('chat.update', {
     channel, ts,
@@ -851,7 +854,7 @@ function _runQueuedReassign() {
             type: 'mrkdwn',
             text: [
               `✅ *Filed by @${job.userName}*`,
-              `*${job.meta.customer}* → \`${job.customerFolderName} / ${CONFIG.INSTALL_SUBFOLDER_NAME}\``,
+              `*${job.meta.customer}* → \`${job.customerFolderName} / ${CONFIG.INSTALL_SUBFOLDER_NAME}${job.meta.isMisc ? ' / ' + installFolder.getName() : ''}\``,
               job.note ? `_Note: ${job.note}_` : null,
             ].filter(Boolean).join('\n'),
           },
@@ -1528,22 +1531,23 @@ function fileMiscFormToFolder(pendingFolderId, customerFolderId) {
   }
 
   const reportFolder = getOrCreateReportFolder(customerFolderId);
-  const miscFolder   = getOrCreateMiscFolder(customerFolderId);
 
-  // .txt files (summary docs) live at the Installation Report level;
-  // all other files (photos, videos) go into the Miscellaneous subfolder.
+  // Extract the date from the pending folder name: "⏳ Customer — Legacy — 2024-05-15"
+  const pendingName  = pendingFolder.getName().replace(/^⏳\s*/, '');
+  const datePart     = pendingName.includes(' — Legacy — ')
+    ? pendingName.split(' — Legacy — ').pop()
+    : formatDate(new Date().toISOString().slice(0, 10));
+  const legacyFolder = reportFolder.createFolder('Legacy — ' + datePart);
+
+  // Move everything into the dated subfolder — log and photos stay together
   const files = pendingFolder.getFiles();
-  while (files.hasNext()) {
-    const file = files.next();
-    const name = file.getName().toLowerCase();
-    file.moveTo(name.endsWith('.txt') ? reportFolder : miscFolder);
-  }
+  while (files.hasNext()) files.next().moveTo(legacyFolder);
 
   const subFolders = pendingFolder.getFolders();
-  while (subFolders.hasNext()) subFolders.next().moveTo(miscFolder);
+  while (subFolders.hasNext()) subFolders.next().moveTo(legacyFolder);
 
   pendingFolder.setTrashed(true);
-  return reportFolder;
+  return legacyFolder;
 }
 
 
