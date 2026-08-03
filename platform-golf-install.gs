@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════
-//  Platform Golf — Installation Report Handler v4.12.0
+//  Platform Golf — Installation Report Handler v4.13.0
 //  Google Apps Script — deploy as Web App (Execute as: Me, Anyone)
 //
 //  v3.0.0 — Reassign modal, Approve, Flag, folder suggestions
@@ -25,6 +25,7 @@
 //  v4.10.0 — Unified structure: legacy .txt flat in Installation Report/, photos → Miscellaneous/
 //  v4.11.0 — Fix: Slack misc photos saved as images not text (explicit MIME type on blob)
 //  v4.12.0 — Fix: misc notes appended to Miscellaneous Notes.txt inside Miscellaneous/ (not Installation Report/)
+//  v4.13.0 — Better Slack feedback: "Got it" pending msg, full path, direct link to Miscellaneous folder
 // ═══════════════════════════════════════════════════════════════
 
 const CONFIG = {
@@ -1087,7 +1088,7 @@ function handleMiscSubmit(payload) {
     text:    `⏳ Saving note to ${folder.name}…`,
     blocks: [{
       type: 'section',
-      text: { type: 'mrkdwn', text: `⏳ *Saving to Drive...*\nFiling to \`${folder.name} / ${CONFIG.INSTALL_SUBFOLDER_NAME}\`\n_Submitted by @${payload.user.name} — usually completes within a minute._` },
+      text: { type: 'mrkdwn', text: `⏳ *Got it — saving to Drive...*\nFiling to \`${folder.name} / ${CONFIG.INSTALL_SUBFOLDER_NAME} / Miscellaneous\`\n_Submitted by @${payload.user.name} — usually completes within a minute._` },
     }],
   });
 
@@ -1199,7 +1200,7 @@ function handleMiscFileSubmit(payload) {
     text:    `⏳ Saving to ${folder.name}…`,
     blocks: [{
       type: 'section',
-      text: { type: 'mrkdwn', text: `⏳ *Saving to Drive...*\nFiling to \`${folder.name} / ${CONFIG.INSTALL_SUBFOLDER_NAME}\`\n_Requested by @${payload.user.name} — usually completes within a minute._` },
+      text: { type: 'mrkdwn', text: `⏳ *Got it — saving to Drive...*\nFiling to \`${folder.name} / ${CONFIG.INSTALL_SUBFOLDER_NAME} / Miscellaneous\`\n_Requested by @${payload.user.name} — usually completes within a minute._` },
     }],
   });
 
@@ -1266,13 +1267,13 @@ function _runQueuedMisc() {
               text: { type: 'mrkdwn', text: [
                 `✅ *Saved by @${job.userName}*`,
                 `📝 Appended to \`Miscellaneous Notes.txt\``,
-                `📁 \`${job.customerFolderName} / ${CONFIG.INSTALL_SUBFOLDER_NAME}\``,
+                `📁 \`${job.customerFolderName} / ${CONFIG.INSTALL_SUBFOLDER_NAME} / Miscellaneous\``,
               ].join('\n') },
             },
             {
               type: 'actions',
               elements: [
-                { type: 'button', text: { type: 'plain_text', text: '📁 Open Installation Report', emoji: true }, url: reportFolder.getUrl(), action_id: 'open_misc' },
+                { type: 'button', text: { type: 'plain_text', text: '📂 Open Miscellaneous Folder', emoji: true }, url: miscFolder.getUrl(), action_id: 'open_misc' },
               ],
             },
           ],
@@ -1343,8 +1344,9 @@ function _runQueuedMisc() {
         }
 
         const lines = [
-          saved.length  ? `✅ *Saved by @${job.userName}*\n` + saved.map(n => `• \`${n}\``).join('\n') + `\n📁 \`${job.customerFolderName} / ${CONFIG.INSTALL_SUBFOLDER_NAME} / Miscellaneous\`` : null,
-          (job.note || saved.length) ? `📝 Appended to \`Miscellaneous Notes.txt\`  in \`${job.customerFolderName} / ${CONFIG.INSTALL_SUBFOLDER_NAME}\`` : null,
+          saved.length  ? `✅ *Saved by @${job.userName}*\n` + saved.map(n => `• \`${n}\``).join('\n') : null,
+          (job.note || saved.length) ? `📝 Note appended to \`Miscellaneous Notes.txt\`` : null,
+          `📁 \`${job.customerFolderName} / ${CONFIG.INSTALL_SUBFOLDER_NAME} / Miscellaneous\``,
           failed.length ? `⚠️ Failed to save: ${failed.map(n => `\`${n}\``).join(', ')}` : null,
         ].filter(Boolean).join('\n');
 
@@ -1358,7 +1360,7 @@ function _runQueuedMisc() {
             {
               type: 'actions',
               elements: [
-                { type: 'button', text: { type: 'plain_text', text: '📁 Open Installation Report', emoji: true }, url: reportFolder.getUrl(), action_id: 'open_misc' },
+                { type: 'button', text: { type: 'plain_text', text: '📂 Open Miscellaneous Folder', emoji: true }, url: miscFolder.getUrl(), action_id: 'open_misc' },
               ],
             },
           ],
