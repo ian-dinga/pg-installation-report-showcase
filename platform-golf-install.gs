@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════
-//  Platform Golf — Installation Report Handler v4.14.0
+//  Platform Golf — Installation Report Handler v4.15.0
 //  Google Apps Script — deploy as Web App (Execute as: Me, Anyone)
 //
 //  v3.0.0 — Reassign modal, Approve, Flag, folder suggestions
@@ -1417,7 +1417,7 @@ function appendToMiscNotes(miscFolder, entry) {
   const newEntry = headerLines.join('\n') + '\n' + bodyLines.join('\n') + '\n';
 
   // Read existing file or create fresh header
-  const existing = reportFolder.getFilesByName(NOTES_FILE);
+  const existing = miscFolder.getFilesByName(NOTES_FILE);
   let currentContent;
   let existingFile = null;
 
@@ -1438,7 +1438,7 @@ function appendToMiscNotes(miscFolder, entry) {
 
   // Replace old file then create updated one
   if (existingFile) existingFile.setTrashed(true);
-  return reportFolder.createFile(blob);
+  return miscFolder.createFile(blob);
 }
 
 
