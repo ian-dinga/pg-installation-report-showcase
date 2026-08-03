@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════
-//  Platform Golf — Installation Report Handler v4.13.0
+//  Platform Golf — Installation Report Handler v4.14.0
 //  Google Apps Script — deploy as Web App (Execute as: Me, Anyone)
 //
 //  v3.0.0 — Reassign modal, Approve, Flag, folder suggestions
@@ -26,6 +26,7 @@
 //  v4.11.0 — Fix: Slack misc photos saved as images not text (explicit MIME type on blob)
 //  v4.12.0 — Fix: misc notes appended to Miscellaneous Notes.txt inside Miscellaneous/ (not Installation Report/)
 //  v4.13.0 — Better Slack feedback: "Got it" pending msg, full path, direct link to Miscellaneous folder
+//  v4.14.0 — Misc confirmations sent as DM from bot instead of posting to channel
 // ═══════════════════════════════════════════════════════════════
 
 const CONFIG = {
@@ -1082,13 +1083,15 @@ function handleMiscSubmit(payload) {
 
   const folder = JSON.parse(selected.value);
 
-  // Post an immediate ⏳ so the channel knows something is in progress
-  const pending = slackPost('chat.postMessage', {
-    channel: meta.channel,
-    text:    `⏳ Saving note to ${folder.name}…`,
+  // Open a DM with the submitting user and post the ⏳ there
+  const dmRes     = slackPost('conversations.open', { users: payload.user.id });
+  const dmChannel = dmRes.channel.id;
+  const pending   = slackPost('chat.postMessage', {
+    channel: dmChannel,
+    text:    `⏳ Got it — saving note to Drive…`,
     blocks: [{
       type: 'section',
-      text: { type: 'mrkdwn', text: `⏳ *Got it — saving to Drive...*\nFiling to \`${folder.name} / ${CONFIG.INSTALL_SUBFOLDER_NAME} / Miscellaneous\`\n_Submitted by @${payload.user.name} — usually completes within a minute._` },
+      text: { type: 'mrkdwn', text: `⏳ *Got it — saving to Drive...*\nFiling to \`${folder.name} / ${CONFIG.INSTALL_SUBFOLDER_NAME} / Miscellaneous\`\n_Usually completes within a minute._` },
     }],
   });
 
@@ -1100,7 +1103,7 @@ function handleMiscSubmit(payload) {
     title,
     content,
     userName:           payload.user.name,
-    channel:            meta.channel,
+    channel:            dmChannel,
     pendingTs:          pending.ts,
   }));
   ScriptApp.newTrigger('_runQueuedMisc').timeBased().after(1).create();
@@ -1194,13 +1197,15 @@ function handleMiscFileSubmit(payload) {
 
   const folder = JSON.parse(selected.value);
 
-  // Post an immediate "saving" message so the channel knows something is happening
-  const pending = slackPost('chat.postMessage', {
-    channel: meta.channel,
-    text:    `⏳ Saving to ${folder.name}…`,
+  // Open a DM with the submitting user and post the ⏳ there
+  const dmRes     = slackPost('conversations.open', { users: payload.user.id });
+  const dmChannel = dmRes.channel.id;
+  const pending   = slackPost('chat.postMessage', {
+    channel: dmChannel,
+    text:    `⏳ Got it — saving files to Drive…`,
     blocks: [{
       type: 'section',
-      text: { type: 'mrkdwn', text: `⏳ *Got it — saving to Drive...*\nFiling to \`${folder.name} / ${CONFIG.INSTALL_SUBFOLDER_NAME} / Miscellaneous\`\n_Requested by @${payload.user.name} — usually completes within a minute._` },
+      text: { type: 'mrkdwn', text: `⏳ *Got it — saving to Drive...*\nFiling to \`${folder.name} / ${CONFIG.INSTALL_SUBFOLDER_NAME} / Miscellaneous\`\n_Usually completes within a minute._` },
     }],
   });
 
@@ -1212,7 +1217,7 @@ function handleMiscFileSubmit(payload) {
     fileKey:            meta.fileKey,
     note,
     userName:           payload.user.name,
-    channel:            meta.channel,
+    channel:            dmChannel,
     pendingTs:          pending.ts,
   }));
   ScriptApp.newTrigger('_runQueuedMisc').timeBased().after(1).create();
