@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════
-//  Platform Golf — Installation Report Handler v4.10.0
+//  Platform Golf — Installation Report Handler v4.12.0
 //  Google Apps Script — deploy as Web App (Execute as: Me, Anyone)
 //
 //  v3.0.0 — Reassign modal, Approve, Flag, folder suggestions
@@ -23,6 +23,8 @@
 //  v4.8.0 — Fix: URL buttons no longer crash doPost; filter iOS __gCrWeb noise from error reports
 //  v4.9.0 — Legacy form files to own dated subfolder (Legacy — YYYY-MM-DD) inside Installation Report
 //  v4.10.0 — Unified structure: legacy .txt flat in Installation Report/, photos → Miscellaneous/
+//  v4.11.0 — Fix: Slack misc photos saved as images not text (explicit MIME type on blob)
+//  v4.12.0 — Fix: misc notes appended to Miscellaneous Notes.txt inside Miscellaneous/ (not Installation Report/)
 // ═══════════════════════════════════════════════════════════════
 
 const CONFIG = {
@@ -203,6 +205,26 @@ function mimeToExt(mimeType) {
     'video/3gpp2':     '.3g2',
   };
   return map[mimeType] || (mimeType.startsWith('video/') ? '.mp4' : '.jpg');
+}
+
+function extToMime(fileName) {
+  const map = {
+    'jpg':  'image/jpeg',
+    'jpeg': 'image/jpeg',
+    'png':  'image/png',
+    'gif':  'image/gif',
+    'webp': 'image/webp',
+    'heic': 'image/heic',
+    'heif': 'image/heif',
+    'mp4':  'video/mp4',
+    'mov':  'video/quicktime',
+    'webm': 'video/webm',
+    'avi':  'video/x-msvideo',
+    '3gp':  'video/3gpp',
+    '3g2':  'video/3gpp2',
+  };
+  const ext = fileName.split('.').pop().toLowerCase();
+  return map[ext] || null;
 }
 
 
@@ -1227,7 +1249,7 @@ function _runQueuedMisc() {
 
       // ── Text note ──
       if (job.type === 'text') {
-        appendToMiscNotes(reportFolder, {
+        appendToMiscNotes(miscFolder, {
           userName: job.userName,
           title:    job.title,
           content:  job.content,
@@ -1298,7 +1320,12 @@ function _runQueuedMisc() {
               muteHttpExceptions: true,
             });
             if (response.getResponseCode() !== 200) throw new Error('HTTP ' + response.getResponseCode());
-            miscFolder.createFile(response.getBlob().setName(fileName));
+            // Set content type explicitly — Slack CDN sometimes returns application/octet-stream
+            // which causes Drive to save the file as unreadable text instead of an image.
+            const blob = response.getBlob();
+            blob.setName(fileName);
+            blob.setContentType(extToMime(fileName) || f.mime || 'image/jpeg');
+            miscFolder.createFile(blob);
             saved.push(fileName);
           } catch (err) {
             Logger.log('Misc file download error (' + f.name + '): ' + err.message);
@@ -1308,7 +1335,7 @@ function _runQueuedMisc() {
 
         // Append description + file list to the shared notes file
         if (job.note || saved.length) {
-          appendToMiscNotes(reportFolder, {
+          appendToMiscNotes(miscFolder, {
             userName: job.userName,
             content:  job.note || null,
             files:    saved,
@@ -1358,10 +1385,9 @@ function _runQueuedMisc() {
 /**
  * Appends a new timestamped entry to Miscellaneous Notes.txt.
  * Creates the file with a header if it doesn't exist yet.
- * reportFolder: the Installation Report folder (file lives at that level, not inside Miscellaneous/)
  * entry: { userName, title (optional), content (optional), files (optional string[]) }
  */
-function appendToMiscNotes(reportFolder, entry) {
+function appendToMiscNotes(miscFolder, entry) {
   const NOTES_FILE = 'Miscellaneous Notes.txt';
   const SEP        = '─'.repeat(40);
   const timestamp  = Utilities.formatDate(new Date(), CONFIG.TIMEZONE, 'MMM d, yyyy h:mm a z');
