@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════
-//  Platform Golf — Installation Report Handler v4.15.0
+//  Platform Golf — Installation Report Handler v4.16.0
 //  Google Apps Script — deploy as Web App (Execute as: Me, Anyone)
 //
 //  v3.0.0 — Reassign modal, Approve, Flag, folder suggestions
@@ -1120,7 +1120,6 @@ function openMiscFileModal(payload) {
   const files = (payload.message.files || []).map(f => ({
     id:   f.id,
     name: f.name,
-    url:  f.url_private_download,
     mime: f.mimetype,
   }));
 
@@ -1296,41 +1295,40 @@ function _runQueuedMisc() {
 
         files.forEach(f => {
           try {
-            let downloadUrl = f.url;
+            const info = slackGetFile(f.id);
+            if (!info.ok || !info.file) throw new Error('files.info: ' + (info.error || 'unknown'));
+
+            const fi   = info.file;
+            let downloadUrl = fi.url_private_download || fi.url_private;
             let fileName    = f.name;
 
-            // HEIC → JPG: Slack pre-generates JPEG thumbnails for every image.
-            // Grab the largest available thumbnail instead of the original HEIC.
-            if (f.mime === 'image/heic' || f.mime === 'image/heif' || fileName.toLowerCase().endsWith('.heic')) {
-              try {
-                const info = slackGetFile(f.id);
-                if (info.ok && info.file) {
-                  const fi       = info.file;
-                  const thumbUrl = fi.thumb_1024 || fi.thumb_960 || fi.thumb_800
-                                 || fi.thumb_720 || fi.thumb_480 || fi.thumb_360;
-                  if (thumbUrl) {
-                    downloadUrl = thumbUrl;
-                    fileName    = fileName.replace(/\.heic$/i, '.jpg');
-                    Logger.log('HEIC → JPG via thumb: ' + thumbUrl);
-                  } else {
-                    Logger.log('No thumb found for HEIC file, fields: ' + Object.keys(fi).join(', '));
-                  }
-                }
-              } catch (convErr) {
-                Logger.log('HEIC thumb lookup failed, using original: ' + convErr.message);
+            const isHeic = fi.mimetype === 'image/heic' || fi.mimetype === 'image/heif'
+                        || fileName.toLowerCase().endsWith('.heic') || fileName.toLowerCase().endsWith('.heif');
+            if (isHeic) {
+              const thumbUrl = fi.thumb_1024 || fi.thumb_960 || fi.thumb_800
+                             || fi.thumb_720 || fi.thumb_480 || fi.thumb_360;
+              if (thumbUrl) {
+                downloadUrl = thumbUrl;
+                fileName    = fileName.replace(/\.heic$/i, '.jpg').replace(/\.heif$/i, '.jpg');
+                Logger.log('HEIC → JPG via thumb: ' + thumbUrl);
+              } else {
+                Logger.log('No thumb found for HEIC, fields: ' + Object.keys(fi).join(', '));
               }
             }
+
+            if (!downloadUrl) throw new Error('No download URL returned by files.info');
 
             const response = UrlFetchApp.fetch(downloadUrl, {
               headers:            { Authorization: 'Bearer ' + CONFIG.SLACK_BOT_TOKEN },
               muteHttpExceptions: true,
             });
             if (response.getResponseCode() !== 200) throw new Error('HTTP ' + response.getResponseCode());
-            // Set content type explicitly — Slack CDN sometimes returns application/octet-stream
-            // which causes Drive to save the file as unreadable text instead of an image.
-            const blob = response.getBlob();
-            blob.setName(fileName);
-            blob.setContentType(extToMime(fileName) || f.mime || 'image/jpeg');
+
+            const bytes = response.getContent();
+            if (bytes[0] === 0x3C) throw new Error('Slack returned HTML instead of image — auth/expiry error');
+
+            const mimeType = extToMime(fileName) || fi.mimetype || 'image/jpeg';
+            const blob     = Utilities.newBlob(bytes, mimeType, fileName);
             miscFolder.createFile(blob);
             saved.push(fileName);
           } catch (err) {
