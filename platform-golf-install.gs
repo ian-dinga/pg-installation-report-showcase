@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════
-//  Platform Golf — Installation Report Handler v4.16.0
+//  Platform Golf — Installation Report Handler v4.17.0
 //  Google Apps Script — deploy as Web App (Execute as: Me, Anyone)
 //
 //  v3.0.0 — Reassign modal, Approve, Flag, folder suggestions
@@ -1254,11 +1254,15 @@ function _runQueuedMisc() {
 
       // ── Text note ──
       if (job.type === 'text') {
-        appendToMiscNotes(miscFolder, {
-          userName: job.userName,
-          title:    job.title,
-          content:  job.content,
-        });
+        const titleText   = (job.title   || '').trim();
+        const contentText = (job.content || '').trim();
+        if (titleText || contentText) {
+          appendToMiscNotes(miscFolder, {
+            userName: job.userName,
+            title:    titleText   || null,
+            content:  contentText || null,
+          });
+        }
 
         const method = job.pendingTs ? 'chat.update' : 'chat.postMessage';
         slackPost(method, {
@@ -1318,14 +1322,19 @@ function _runQueuedMisc() {
 
             if (!downloadUrl) throw new Error('No download URL returned by files.info');
 
-            const response = UrlFetchApp.fetch(downloadUrl, {
-              headers:            { Authorization: 'Bearer ' + CONFIG.SLACK_BOT_TOKEN },
-              muteHttpExceptions: true,
+            const authHeaders = { Authorization: 'Bearer ' + CONFIG.SLACK_BOT_TOKEN };
+            let response = UrlFetchApp.fetch(downloadUrl, {
+              headers: authHeaders, muteHttpExceptions: true, followRedirects: false,
             });
+            if (response.getResponseCode() >= 300 && response.getResponseCode() < 400) {
+              const location = response.getHeaders()['Location'] || response.getHeaders()['location'];
+              if (!location) throw new Error('Redirect with no Location (HTTP ' + response.getResponseCode() + ')');
+              response = UrlFetchApp.fetch(location, { headers: authHeaders, muteHttpExceptions: true });
+            }
             if (response.getResponseCode() !== 200) throw new Error('HTTP ' + response.getResponseCode());
 
             const bytes = response.getContent();
-            if (bytes[0] === 0x3C) throw new Error('Slack returned HTML instead of image — auth/expiry error');
+            if (bytes[0] === 0x3C) throw new Error('Got HTML response — possible auth error');
 
             const mimeType = extToMime(fileName) || fi.mimetype || 'image/jpeg';
             const blob     = Utilities.newBlob(bytes, mimeType, fileName);
@@ -1333,22 +1342,22 @@ function _runQueuedMisc() {
             saved.push(fileName);
           } catch (err) {
             Logger.log('Misc file download error (' + f.name + '): ' + err.message);
-            failed.push(f.name);
+            failed.push(f.name + ' (' + err.message + ')');
           }
         });
 
-        // Append description + file list to the shared notes file
-        if (job.note || saved.length) {
+        // Only append to notes if there's actual text — no blank entries
+        const noteText = (job.note || '').trim();
+        if (noteText) {
           appendToMiscNotes(miscFolder, {
             userName: job.userName,
-            content:  job.note || null,
-            files:    saved,
+            content:  noteText,
           });
         }
 
         const lines = [
           saved.length  ? `✅ *Saved by @${job.userName}*\n` + saved.map(n => `• \`${n}\``).join('\n') : null,
-          (job.note || saved.length) ? `📝 Note appended to \`Miscellaneous Notes.txt\`` : null,
+          noteText      ? `📝 Note appended to \`Miscellaneous Notes.txt\`` : null,
           `📁 \`${job.customerFolderName} / ${CONFIG.INSTALL_SUBFOLDER_NAME} / Miscellaneous\``,
           failed.length ? `⚠️ Failed to save: ${failed.map(n => `\`${n}\``).join(', ')}` : null,
         ].filter(Boolean).join('\n');
