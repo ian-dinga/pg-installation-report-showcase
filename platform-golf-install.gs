@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════
-//  Platform Golf — Installation Report Handler v4.17.0
+//  Platform Golf — Installation Report Handler v4.18.0
 //  Google Apps Script — deploy as Web App (Execute as: Me, Anyone)
 //
 //  v3.0.0 — Reassign modal, Approve, Flag, folder suggestions
@@ -1120,6 +1120,7 @@ function openMiscFileModal(payload) {
   const files = (payload.message.files || []).map(f => ({
     id:   f.id,
     name: f.name,
+    url:  f.url_private_download,
     mime: f.mimetype,
   }));
 
@@ -1299,28 +1300,25 @@ function _runQueuedMisc() {
 
         files.forEach(f => {
           try {
-            const info = slackGetFile(f.id);
-            if (!info.ok || !info.file) throw new Error('files.info: ' + (info.error || 'unknown'));
-
-            const fi   = info.file;
-            let downloadUrl = fi.url_private_download || fi.url_private;
+            let downloadUrl = f.url;
             let fileName    = f.name;
 
-            const isHeic = fi.mimetype === 'image/heic' || fi.mimetype === 'image/heif'
+            // HEIC: best-effort swap to Slack's pre-generated JPEG thumbnail.
+            const isHeic = f.mime === 'image/heic' || f.mime === 'image/heif'
                         || fileName.toLowerCase().endsWith('.heic') || fileName.toLowerCase().endsWith('.heif');
             if (isHeic) {
-              const thumbUrl = fi.thumb_1024 || fi.thumb_960 || fi.thumb_800
-                             || fi.thumb_720 || fi.thumb_480 || fi.thumb_360;
-              if (thumbUrl) {
-                downloadUrl = thumbUrl;
-                fileName    = fileName.replace(/\.heic$/i, '.jpg').replace(/\.heif$/i, '.jpg');
-                Logger.log('HEIC → JPG via thumb: ' + thumbUrl);
-              } else {
-                Logger.log('No thumb found for HEIC, fields: ' + Object.keys(fi).join(', '));
-              }
+              try {
+                const info = slackGetFile(f.id);
+                if (info.ok && info.file) {
+                  const thumbUrl = info.file.thumb_1024 || info.file.thumb_960 || info.file.thumb_800
+                                 || info.file.thumb_720 || info.file.thumb_480 || info.file.thumb_360;
+                  if (thumbUrl) {
+                    downloadUrl = thumbUrl;
+                    fileName    = fileName.replace(/\.heic$/i, '.jpg').replace(/\.heif$/i, '.jpg');
+                  }
+                }
+              } catch (_) { /* fall through to original URL */ }
             }
-
-            if (!downloadUrl) throw new Error('No download URL returned by files.info');
 
             const authHeaders = { Authorization: 'Bearer ' + CONFIG.SLACK_BOT_TOKEN };
             let response = UrlFetchApp.fetch(downloadUrl, {
@@ -1334,9 +1332,9 @@ function _runQueuedMisc() {
             if (response.getResponseCode() !== 200) throw new Error('HTTP ' + response.getResponseCode());
 
             const bytes = response.getContent();
-            if (bytes[0] === 0x3C) throw new Error('Got HTML response — possible auth error');
+            if (bytes[0] === 0x3C) throw new Error('Got HTML instead of image — possible auth error');
 
-            const mimeType = extToMime(fileName) || fi.mimetype || 'image/jpeg';
+            const mimeType = extToMime(fileName) || f.mime || 'image/jpeg';
             const blob     = Utilities.newBlob(bytes, mimeType, fileName);
             miscFolder.createFile(blob);
             saved.push(fileName);
